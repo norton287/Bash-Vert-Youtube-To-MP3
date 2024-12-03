@@ -4,7 +4,7 @@
 DOWNLOAD_DIR="/volumes/data/metube/downloads"
 MUSIC_DIR="/music/music"
 COMPLETED_DIR="/volumes/data/metube/downloads/completed"
-LOG_DIR="/var/log/verter.log"
+LOG_DIR="/var/log/spindlecrank/verter.log"
 
 # Create log file if it doesn't exist
 touch "$LOG_DIR"
@@ -37,13 +37,25 @@ install_utilities() {
 # Install utilities if needed
 install_utilities
 
-# Clean up the crap from YouTube
+
+# Clean up filename from unwanted characters
 sanitize_filename() {
+  echo "Normalizing MP3 Filename" >> "$LOG_DIR"
+  # Extract the base name of the file
   local base_name=$(basename "$1")
-  local sanitized_name="${base_name//[^a-zA-Z0-9._-]/_}"
-  echo "Normalized MP3 Filename to: $sanitized_name" >> "$LOG_DIR"
+  local sanitized_name=$(echo "$base_name" | tr -c '[:alnum:]._-' ' ')
+  echo "Normalized MP3 Filename to: ${filename}" >> "$LOG_DIR"
   echo "$sanitized_name"
 }
+
+
+# Clean up the filename from unwanted characters
+#sanitize_filename() {
+#  local base_name=$(basename "$1")
+#  local sanitized_name="${base_name//[^a-zA-Z0-9._-]/_}"
+#  echo "Sanitized MP3 Filename: $sanitized_name" >> "$LOG_DIR"
+#  echo "$sanitized_name"
+#}
 
 # Convert the Video to MP3
 convert_to_mp3() {
@@ -61,16 +73,15 @@ convert_to_mp3() {
     echo "Warning: Normalization failed for $mp3_file" >> "$LOG_DIR"
   fi
 
-  echo "Converted MP3 is: $mp3_file" >> "$LOG_DIR"
-
-  # Sanitize the MP3 filename
+  # Sanitize the filename
   local sanitized_name=$(sanitize_filename "$mp3_file")
-  local sanitized_path=$(dirname "$mp3_file")/"$sanitized_name"
+  local sanitized_path="$MUSIC_DIR/$sanitized_name"
 
-  # Rename the file to the sanitized version
-  mv "$mp3_file" "$sanitized_path"
-  
-  echo "$sanitized_path"
+  # Move the MP3 file to the music directory
+  mv -f "$mp3_file" "$sanitized_path"
+  echo "Moved MP3 to $sanitized_path" >> "$LOG_DIR"
+
+  echo "$sanitized_path"  # Return the path for further use
 }
 
 # Enable nullglob to handle no matches gracefully
@@ -88,16 +99,14 @@ for video_file in "$DOWNLOAD_DIR"/*.{mp4,webm}; do
   # Convert video to MP3
   converted_file=$(convert_to_mp3 "$video_file") || continue
   
-  # Move MP3 file to music directory
-  if [[ -f "$converted_file" ]]; then
-    mv -f "$converted_file" "$MUSIC_DIR"
-  else
-    echo "Error: Converted MP3 file not found for $video_file" >> "$LOG_DIR"
-    continue
-  fi
-
   # Move original video to completed directory
-  mv -f "$video_file" "$COMPLETED_DIR"
+  if [[ -f "$converted_file" ]]; then
+    mv -f "$video_file" "$COMPLETED_DIR"
+    echo "Moved video to $COMPLETED_DIR" >> "$LOG_DIR"
+  else
+    echo "Error: Converted MP3 not found for $video_file" >> "$LOG_DIR"
+  fi
 done
 
 echo "Done processing video files." >> "$LOG_DIR"
+
