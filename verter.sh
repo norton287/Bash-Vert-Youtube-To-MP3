@@ -4,7 +4,7 @@
 DOWNLOAD_DIR="/volumes/data/metube/downloads"
 MUSIC_DIR="/music/music"
 COMPLETED_DIR="/volumes/data/metube/downloads/completed"
-LOG_DIR="/var/log/spindlecrank/verter.log"
+LOG_DIR="/var/log/verter.log"
 
 # Create log file if it doesn't exist
 touch "$LOG_DIR"
