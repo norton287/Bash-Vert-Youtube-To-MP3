@@ -12,6 +12,7 @@ touch "$LOG_DIR"
 # Open source utilities
 FFMPEG="/usr/bin/ffmpeg"
 MP3GAIN="/usr/bin/mp3gain"
+RETURN_NAME=""
 
 # Check if FFMPEG and MP3GAIN are installed, if not, install them
 install_utilities() {
@@ -34,12 +35,21 @@ sanitize_filename() {
   echo "Normalizing MP3 Filename" >> "$LOG_DIR"
   # Extract the base name of the file
   local base_name=$(basename "$1")
-  local sanitized_name=$(echo "$base_name" | tr -c '[:alnum:]._-' ' ')
+  echo "base_name: '$base_name'" >> "$LOG_DIR" # Debug line
+
+  # Trim leading/trailing whitespace from the base_name
+  local trimmed_name=$(echo "$base_name" | xargs)
+  echo "trimmed_name: '$trimmed_name'" >> "$LOG_DIR" # Debug line
+
+  # Use sed to remove any non-alphanumeric characters from the end
+  local sanitized_name=$(echo "$trimmed_name" | sed 's/[^[:alnum:]._-]*$//') 
+  echo "sanitized_name: '$sanitized_name'" >> "$LOG_DIR" # Debug line
 
   # Remove any duplicate spaces
   sanitized_name=$(echo "$sanitized_name" | tr -s ' ')
+  echo "sanitized_name after tr -s: '$sanitized_name'" >> "$LOG_DIR" # Debug line
 
-  echo "Normalized MP3 Filename to: ${filename}" >> "$LOG_DIR"
+  echo "Normalized MP3 Filename to: ${sanitized_name}" >> "$LOG_DIR"
   echo "$sanitized_name"
 }
 
@@ -52,6 +62,7 @@ convert_to_mp3() {
   if ! $FFMPEG -i "$video_file" -vn -acodec libmp3lame -b:a 320k "$mp3_file";
   then
     echo "Error: Conversion failed for $video_file" >> "$LOG_DIR"
+    RETURN_NAME=""
     return 1
   fi
 
@@ -68,16 +79,14 @@ convert_to_mp3() {
   mv -f "$mp3_file" "$sanitized_path"
   echo "Moved MP3 to $sanitized_path" >> "$LOG_DIR"
 
-  # Additional check to remove extra spaces and rename if necessary
-  local final_name=$(echo "$sanitized_name" | tr -s ' ')
-  if [[ "$final_name" != "$sanitized_name" ]]; then
-    local final_path="$MUSIC_DIR/$final_name"
-    mv -f "$sanitized_path" "$final_path"
-    echo "Renamed MP3 to $final_path" >> "$LOG_DIR"
-    sanitized_path="$final_path"
+  if [[ -z "$sanitized_path" ]]; 
+  	then
+    	echo "Error: Conversion failed for $video_file" >> "$LOG_DIR"
+        RETURN_NAME=""
+    	return 1
+    else
+    	RETURN_NAME="$sanitized_path"
   fi
-
-  echo "$sanitized_path"  # Return the path for further use
 }
 
 # Enable nullglob to handle no matches gracefully
@@ -95,10 +104,18 @@ do
   echo "Processing $video_file..." >> "$LOG_DIR"
 
   # Convert video to MP3
-  converted_file=$(convert_to_mp3 "$video_file") || continue
+  convert_to_mp3 "$video_file" 
+
+  # Check if conversion was successful
+  if [[ -z "$RETURN_NAME" ]]; then
+    echo "Error: Conversion failed for $video_file" >> "$LOG_DIR"
+    continue
+  fi
+
+  echo "Converted output was: ${RETURN_NAME}" >> "$LOG_DIR"
 
   # Move original video to completed directory after successful MP3 conversion
-  if [[ -f "$converted_file" ]];
+  if [[ -f "$RETURN_NAME" ]];
   then
     mv -f "$video_file" "$COMPLETED_DIR/"
     if [[ $? -eq 0 ]];
